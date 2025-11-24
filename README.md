@@ -7,11 +7,9 @@ This repository includes two Solidity contracts used for the BTX token and sched
 ## Contract Files
 
 ### **beatswap.sol**
-
 ERC20 (BNB Chain) token contract defining the BTX token name, symbol, initial supply, and burn capability.
 
 ### **tokenvestinglock.sol**
-
 Distributes BTX to multiple accounts according to predefined shares and a time-based release schedule.  
 Vested tokens are distributed when `release()` is executed.  
 Anyone may call `release()`.
@@ -72,16 +70,34 @@ Groups requiring scheduled release send their allocations into the TokenVestingL
 | **RWA Pairing Liquidity Vault** | `0xaf11B8A952922FDB8F66040928248C22F09f4A74` | **TBD** |
 | **PoR Rewards Vault** | `0x938f14C8dF63f1c286183E1485b1B5364DD6B77D` | **N/A** |
 
-Multisig vaults are created using Safe.global.
+---
+
+## Security & Distribution Policy
+
+The initial mint is immediately redistributed in full to the designated multi-sig vaults.  
+No BTX tokens remain in any externally-owned account (EOA) after deployment.  
+Multisig vaults are created using Safe.global.  
+Multi-sig wallets follow a 2-of-3 Safe configuration to prevent single-key compromise.
+
+**Signers:**  
+Signer 1: `0xa7F7ef6946427932547d44cF1132c54269cd379A`  
+Signer 2: `0x61C82f55A86593DB82c45B2cf48dF4c4852a0c2D`  
+Signer 3: `0x2dc6de8EC6d4b4f175dbb40a523D7aA03F70280A`
 
 ---
 
 ## Token Flow
 
-1. **Deployment mint → initial recipient**
-2. **Initial recipient → multisig vaults**
-3. **(If applicable) multisig vault → TokenVestingLock**
+1. **Deployment mint → initial recipient**  
+2. **Initial recipient → Immediate redistribution → all multisig vaults**  
+3. **(If applicable) multisig vault → TokenVestingLock**  
 4. **Vested tokens distributed through `release()`**
+
+---
+
+## Published Token Distribution Plan
+
+https://beatswap.gitbook.io/beatswap/tokenomics/usdbtx-tokenomics#allocation-breakdown
 
 ---
 
