@@ -88,10 +88,11 @@ Signer 3: `0x2dc6de8EC6d4b4f175dbb40a523D7aA03F70280A`
 
 ## Token Flow
 
-1. **Deployment mint → initial recipient**  
-2. **Initial recipient → Immediate redistribution → all multisig vaults**  
-3. **(If applicable) multisig vault → TokenVestingLock**  
-4. **Vested tokens distributed through `release()`**
+1. **Deployment mint → Initial recipient**  
+   Safe multi-sig:`0x208d99B94C63d8A1bA2daf31737fFcdA4D16bc98`   
+3. **Initial recipient → Immediate redistribution → all multisig vaults**  
+4. **(If applicable) multisig vault → TokenVestingLock**  
+5. **Vested tokens distributed through `release()`**
 
 ---
 
