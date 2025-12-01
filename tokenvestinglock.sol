@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title TokenVestingLock
@@ -10,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * since it is handled transparently by the contract.
  * Additionally, this contract handles the vesting of BeatSwap tokens for a given payee and
  * release the tokens to the payee following a given vesting schedule.
-
+ *
  * The split can be in equal parts or in any other arbitrary proportion.
  * The way this is specified is by assigning each account to a number of shares.
  * Of all the BeatSwap tokens that this contract receives, each account will then be able
@@ -19,12 +20,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * Additionally, any token transferred to this contract will follow the vesting schedule as if they were locked from the beginning.
  * Consequently, if the vesting has already started, any amount of tokens sent to this contract will (at least partly)
  * be immediately releasable.
-
+ *
  * 'TokenVestingLock' follows a _pull payment_ model. This means that payments are not automatically forwarded to the
  * accounts but kept in this contract, and the actual transfer is triggered as a separate step by calling the {release} function.
 */
 
 contract TokenVestingLock {
+    using SafeERC20 for IERC20;
     IERC20 public immutable token;
 
     // Payee struct represents a participant who is eligible to receive tokens from a smart contract.
@@ -42,25 +44,20 @@ contract TokenVestingLock {
     uint256 public immutable totalRounds;  // The total number of token release rounds.
     uint256 public immutable totalAccounts;  // The total number of payees.
     uint256 public totalReleasedTokens;  // The total number of tokens already released.
+    uint256 public totalFundedTokens;
 
     Payee[] public payees;  // An array of Payee structs representing the payees.
     mapping(address => uint256) public releasedAmount;  // A mapping of released token amounts for each payee address.
 
-
-    /** Creates a new TokenVestingLock contract instance that locks the specified ERC20 token for a certain period of time,
-     * and releases it in a linear fashion to a list of payees.
-     * Set the payee, start timestamp and vesting duration of the 'TokenVestingLock' wallet.
-     *
-     * Creates an instance of TokenVestingLock where each account in accounts is assigned the number of shares at
-     * the matching position in the shares array.
-     * All addresses in accounts must be non-zero. Both arrays must have the same non-zero length, and there must be no
-     * duplicates in accounts
-     *
-     * @param _startDelay The delay in seconds before vesting starts.
-     * @param _accounts The list of addresses of the payees.
-     */
-    
-    constructor(IERC20 _token, uint256 _startDelay, uint256 _durationSeconds, uint256 _intervalSeconds, uint256 _totalReleaseTokens, address[] memory _accounts, uint256[] memory _shares) {
+    constructor(
+        IERC20 _token,
+        uint256 _startDelay,
+        uint256 _durationSeconds,
+        uint256 _intervalSeconds,
+        uint256 _totalReleaseTokens,
+        address[] memory _accounts,
+        uint256[] memory _shares
+    ) {
         require(_accounts.length == _shares.length, "TokenVestingLock: accounts and shares length mismatch");
         require(_accounts.length > 0, "TokenVestingLock: no payees");
 
@@ -81,26 +78,41 @@ contract TokenVestingLock {
         startTime = block.timestamp + _startDelay;
         intervalSeconds = _intervalSeconds;
         totalReleaseTokens = _totalReleaseTokens;
-        totalRounds = durationSeconds/intervalSeconds;
+        totalRounds = durationSeconds / intervalSeconds;
         totalAccounts = _accounts.length;
-        require(durationSeconds % intervalSeconds == 0, "error durationSeconds value");        
+        require(durationSeconds % intervalSeconds == 0, "error durationSeconds value");
+        uint256 sumReleaseTokens = 0;    // Sum of releaseTokens across all payees
+
         for (uint256 i = 0; i < _accounts.length; i++) {
-            uint256 tokensPerRoundPerBeneficiary = totalReleaseTokens * _shares[i] * intervalSeconds / durationSeconds / 100;
+            uint256 tokensPerRoundPerBeneficiary =
+                (totalReleaseTokens * _shares[i] * intervalSeconds) / durationSeconds / 100;
             uint256 releaseTokens = tokensPerRoundPerBeneficiary * totalRounds;
+            sumReleaseTokens += releaseTokens;
             payees.push(Payee(_accounts[i], _shares[i], tokensPerRoundPerBeneficiary, releaseTokens));
         }
+        // Ensure the sum of releaseTokens equals totalReleaseTokens to avoid rounding discrepancies
+        require(sumReleaseTokens == totalReleaseTokens, "TokenVestingLock: invalid totalReleaseTokens");        
+    }
 
+    function fund(uint256 amount) external {
+        require(amount > 0, "TokenVestingLock: amount is zero");
+        totalFundedTokens += amount;
+        require(totalFundedTokens <= totalReleaseTokens, "TokenVestingLock: overfunding");
+
+        token.safeTransferFrom(msg.sender, address(this), amount);
+        emit funded(msg.sender, amount);
+    }
+
+    function remainingToFund() external view returns (uint256) {
+        if (totalFundedTokens >= totalReleaseTokens) {
+            return 0;
+        }
+        return totalReleaseTokens - totalFundedTokens;
     }
 
     /**
      * Releases tokens to payees based on the vesting schedule.
-     * Tokens are released for each time interval as defined by intervalSeconds until the vesting period ends.
-     * Tokens that have already been released will not be released again.
-     * If the vesting period has not yet started, the function will revert.
-     *
-     * Anyone can execute the 'release' function.
-     */    
-
+     */
     function release() public {
         uint256 currentTime = block.timestamp;
         require(currentTime >= startTime, "Vesting not started yet");
@@ -111,21 +123,28 @@ contract TokenVestingLock {
             totalVestedTokens = totalReleaseTokens;
         }
 
+        if (totalVestedTokens <= totalReleasedTokens) {
+            revert("TokenVestingLock: no tokens to release");
+        }
+        uint256 totalReleasable = totalVestedTokens - totalReleasedTokens;
+
+        // Single aggregate balance check; if insufficient, the whole release reverts
+        uint256 contractBalance = token.balanceOf(address(this));
+        require(totalReleasable <= contractBalance, "TokenVestingLock: insufficient balance for release");
+
         for (uint256 i = 0; i < payees.length; i++) {
             uint256 payeeShare = (payees[i].shares * totalVestedTokens) / 100;
             uint256 releasable = payeeShare - releasedAmount[payees[i].account];
-            require(releasable <= token.balanceOf(address(this)), "The available balance for release is insufficient");
-            releasedAmount[payees[i].account] += releasable;
-            totalReleasedTokens += releasable;
-            token.transfer(payees[i].account, releasable);
-            emit released(payees[i].account, releasable);
+
+            if (releasable > 0) {
+                releasedAmount[payees[i].account] += releasable;
+                totalReleasedTokens += releasable;
+                token.safeTransfer(payees[i].account, releasable);
+                emit released(payees[i].account, releasable);
+            }
         }
     }
 
-    /**
-     * Returns the Payee struct associated with the specified account.
-     * @param _account The address of the payee account to retrieve.
-     */
     function getPayee(address _account) public view returns (Payee memory) {
         for (uint256 i = 0; i < payees.length; i++) {
             if (payees[i].account == _account) {
@@ -135,27 +154,17 @@ contract TokenVestingLock {
         revert("missing account");
     }
 
-    /** Returns the number of rounds released.
-     * A round is considered released if the tokens for that round have been fully released.
-     * If the payee has not received any tokens yet, returns 0.
-     * Otherwise, calculates the number of rounds released based on the tokens already released and the tokens that the payee receives per round.
-     */
     function releasedRounds() public view returns (uint256) {
         address account = payees[0].account;
-        if(releasedAmount[account] == 0) {
+        if (releasedAmount[account] == 0) {
             return 0;
         } else {
             return releasedAmount[account] / payees[0].tokensPerRoundPerPayee;
         }
     }
-    
-    /** Returns the number of rounds remaining until vesting is complete.
-     * If the vesting has not yet started, returns the total number of rounds.
-     * If vesting has already completed, returns 0.
-     * Otherwise, calculates the number of rounds remaining based on the current time and the vesting duration.
-     */
+
     function remainingRounds() public view returns (uint256) {
-        if(startTime > block.timestamp) {
+        if (startTime > block.timestamp) {
             return totalRounds;
         } else {
             if (block.timestamp >= startTime + durationSeconds) {
@@ -166,11 +175,6 @@ contract TokenVestingLock {
         }
     }
 
-    /**
-     * Returns the number of tokens that are yet to be released.
-     * Calculates the total number of rounds remaining based on the difference between totalRounds and the number of rounds already released,
-     * and then calculates the total number of tokens remaining based on the tokensPerRound for each payee and the number of remaining rounds.
-     */
     function remainingTokens() public view returns (uint256) {
         uint256 tokensPerRound = 0;
         uint256 remaining = totalRounds - releasedRounds();
@@ -181,4 +185,5 @@ contract TokenVestingLock {
     }
 
     event released(address indexed account, uint256 amount);
+    event funded(address indexed sender, uint256 amount);
 }
