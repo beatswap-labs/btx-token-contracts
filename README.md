@@ -16,6 +16,18 @@ Anyone may call `release()`.
 
 ---
 
+## Contract Addresses
+
+**BTX Token (BNB Smart Chain Mainnet)**  
+• Token Contract: `0xAa242a47F4cC074E59cbC7D65309B1F21202AaA3`  
+• Token Name: **BeatSwap**  
+• Token Symbol: **BTX**  
+• Decimals: **18**  
+• BscScan Verification:  
+https://bscscan.com/token/0xAa242a47F4cC074E59cbC7D65309B1F21202AaA3
+
+---
+
 ## Allocation Categories
 
 Each allocation group uses its own multisig vault.  
@@ -83,6 +95,13 @@ Multi-sig wallets follow a 2-of-3 Safe configuration to prevent single-key compr
 Signer 1: `0xa7F7ef6946427932547d44cF1132c54269cd379A`  
 Signer 2: `0x61C82f55A86593DB82c45B2cf48dF4c4852a0c2D`  
 Signer 3: `0x2dc6de8EC6d4b4f175dbb40a523D7aA03F70280A`
+
+---
+
+### External Security Audit
+
+• CertiK Audit / Skynet Page:  
+https://skynet.certik.com/projects/beatswap
 
 ---
 
