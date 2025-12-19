@@ -82,6 +82,34 @@ Groups requiring scheduled release send their allocations into the TokenVestingL
 | **RWA Pairing Liquidity Vault** | `0xaf11B8A952922FDB8F66040928248C22F09f4A74` | **TBD** |
 | **PoR Rewards Vault** | `0x938f14C8dF63f1c286183E1485b1B5364DD6B77D` | **N/A** |
 
+
+### LV Convert (Liquidity-Backed Vesting)
+
+The Public Round allocation was not distributed through a direct token sale.
+The allocation is structured through **LV Convert**, a liquidity-backed vesting mechanism.
+
+Participants deposit USDT.
+The deposited amount is allocated as follows:
+
+* **50%** allocated to **BTX–USDT liquidity**, locked for **180 days**
+* **50%** allocated to **BTX vesting**, released **linearly over 180 days** (second-by-second)
+
+A **9.8% vesting bonus** is included in the vesting amount and released gradually.
+There are no cliffs or sudden unlock events.
+
+#### LV Convert Contracts (BNB Chain)
+
+* **LV Convert 2,000 USDT (One-Time)**
+  `0x9a7A92240FBAc4030b65A6E61239928d6Bcc716F`
+
+* **LV Convert 10,000+ USDT (Unlimited)**
+  `0x1e647FAADb05f2124BFCcFC003EDc06D1A90bf5D`
+
+#### Reference
+
+Detailed mechanics:
+[https://beatswap.gitbook.io/beatswap/tokenomics/usdbtx-tokenomics/lv-convert](https://beatswap.gitbook.io/beatswap/tokenomics/usdbtx-tokenomics/lv-convert)
+
 ---
 
 ## Security & Distribution Policy
